@@ -293,6 +293,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             // setCharacteristicNotification(gatt!!, characteristic!!, true)
+           //
+        // gatt?.requestMtu(512)
 
         }
 
@@ -318,6 +320,11 @@ class MainActivity : AppCompatActivity() {
             }
             completeCommand()
 
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+            super.onMtuChanged(gatt, mtu, status)
+            Log.d(TAG, "onMtuChanged: mtu: $mtu")
         }
 
         override fun onCharacteristicRead(
