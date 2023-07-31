@@ -10,11 +10,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Build.VERSION
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.security.MessageDigest
 import java.util.*
 
 
@@ -32,9 +36,18 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    private fun generateMessageDigest(): String {
+        val hash = MessageDigest.getInstance("MD5")
+        val bytes = hash.digest("103122300001enydarten".toByteArray())
+        return bytes.joinToString("") {
+            "%02x".format(it)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        Log.d(TAG, "onCreate generateMessageDigest : ${generateMessageDigest()}")
 
     }
 
@@ -273,29 +286,34 @@ class MainActivity : AppCompatActivity() {
             val service = gatt?.getService(VBUS_SERVICE_UUID)
             val characteristic = service?.getCharacteristic(VBUS_CHARACTERISTIC_UUID)
 
-            setCharacteristicNotification(gatt!!, characteristic!!, true)
-
-            if (gatt != null) {
-                if (characteristic != null) {
-                    writeCharacteristic(
-                        gatt,
-                        characteristic,
-                        "SETUP,12345678,87654321,1".toByteArray(Charsets.UTF_8),
-                        BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                    )
-                    writeCharacteristic(
-                        gatt,
-                        characteristic,
-                        "INFOCONNECT".toByteArray(Charsets.UTF_8),
-                        BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                    )
-                }
+            gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);
+            if (VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                gatt?.requestMtu(512);
             }
 
-            // setCharacteristicNotification(gatt!!, characteristic!!, true)
-           //
-        // gatt?.requestMtu(512)
+            // All requests to a BluetoothGatt object must be serialised. You can't request mtu while you have another pending operation.
 
+            Handler(Looper.getMainLooper()!!).postDelayed({
+                gatt?.setCharacteristicNotification(characteristic!!, true)
+                if (gatt != null) {
+                    if (characteristic != null) {
+                        writeCharacteristic(
+                            gatt,
+                            characteristic,
+                            "\"SETUP,103122300001,4b225f068355192981d680c764d3e849,1\"".toByteArray(
+                                Charsets.UTF_8
+                            ),
+                            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                        )
+                        writeCharacteristic(
+                            gatt,
+                            characteristic,
+                            "\"INFOCONNECT\"".toByteArray(Charsets.UTF_8),
+                            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                        )
+                    }
+                }
+            }, 1500)
         }
 
         override fun onDescriptorWrite(
@@ -312,7 +330,10 @@ class MainActivity : AppCompatActivity() {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     Log.d(TAG, "onDescriptorWrite: success")
                     val value: ByteArray = descriptor.value
-                    Log.d(TAG, "onDescriptorWrite: descriptor value: ${value[0]}")
+                    Log.d(
+                        TAG, "onDescriptorWrite: descriptor " +
+                                "value: ${value[0]}"
+                    )
                 } else {
                     Log.d(TAG, "onDescriptorWrite: failed")
                 }
@@ -362,7 +383,7 @@ class MainActivity : AppCompatActivity() {
                     VBUS_CHARACTERISTIC_UUID -> {
                         Log.d(
                             TAG,
-                            "onCharacteristicChanged UUID: ${this?.uuid} value: ${
+                            "onCharacteristicChanged value: ${
                                 value?.toString(
                                     Charsets.UTF_8
                                 )
